@@ -1,4 +1,3 @@
-import streamlit as st
 # import hmac
 import streamlit as st
 import pandas as pd
@@ -10,13 +9,11 @@ import random
 # import mysqlclient  # pip install mysqlclient (hard to work with this pacakge)
 # import PIL
 from PIL import Image, UnidentifiedImageError
-# import pymysql  # pip install pymysql
 import io
 from io import BytesIO
 import base64
 from datetime import date
 import pdfkit  # pip install pdfkit
-# pip install Jinja2
 from jinja2 import Environment, PackageLoader, select_autoescape, FileSystemLoader  # pip install
 import time
 from time import sleep

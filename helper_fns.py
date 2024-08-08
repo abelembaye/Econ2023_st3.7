@@ -14,78 +14,53 @@ import hmac
 
 
 def process_canvas(default_drawing_data):
-    canvas_width = 600
+    canvas_width = 700
     canvas_height = 500
+    # respectively, x label upper limit, y label upper limit, distance from left limit to the axes as % of canvas_width, distance from bottom to the x-axis
+    xlim = 100  # 200 # can changed; and that is what matters which is seen by users
+    ylim = 100  # 500
+    # as percentage of canvas_width (.225 is from top of canvas to top of rectangle or ylim)
+    bottom_margin = 75  # absolute in pixels
+    left_margin = 84
+    top_margin = 25
+    right_margin = 35
+    scaleFactors = [xlim, ylim, bottom_margin,
+                    left_margin, top_margin, right_margin]
 
-    # xx = st.number_input("Pick a number up to 1000", 0, 1000, key="xx")
-    # yy = st.number_input("Pick a number up to 1000", 0, 1000, key="yy")
-
-    # if xx is not 0:
-    #     x_lim = [0, xx]
+    # if 'saved_state' not in st.session_state or st.session_state.saved_state is None:
+    #     # print('NEW SESSION')
+    #     if os.path.exists("saved_state.json"):
+    #         with open("saved_state.json", "r") as f:
+    #             saved_state = json.load(f)
+    #     else:
+    #         saved_state = {}  # Initialize an empty state if the file doesn't exist
+    #         with open("saved_state.json", "w") as f:
+    #             json.dump(saved_state, f)  # Create the file
+    #     st.session_state['saved_state'] = saved_state
     # else:
-    #     x_lim = [0, 100]
-    # if yy is not 0:
-    #     y_lim = [0, yy]
-    # else:
-    #     y_lim = [0, 100]
-
-    x_lim = [0, 100]
-    y_lim = [0, 100]
-
-    xsteps = (x_lim[1]-x_lim[0])/10
-    ysteps = (y_lim[1]-y_lim[0])/10
-
-    # constant that are mentioned in
-    scaleFactors = [x_lim[0], x_lim[1], .1214, .775]
-
-    # Create a figure and axis
-    fig, ax = plt.subplots()
-
-    # Set the limits of the plot
-    ax.set_xlim([x_lim[0], x_lim[1]])
-    ax.set_ylim([y_lim[0], y_lim[1]])
-
-    # Set the labels of the plot
-    ax.set_xlabel('Quantity, Q')
-    ax.set_ylabel('Price, P')
-
-    # Specify the locations of the grid lines
-    # Grid lines from 0 to 10 with a step of z
-    x_ticks = np.arange(x_lim[0], x_lim[1] + 1, xsteps)
-    # Grid lines from 0 to 10 with a step of z
-    y_ticks = np.arange(y_lim[0], y_lim[1] + 1, ysteps)
-
-    ax.set_xticks(x_ticks)
-    ax.set_yticks(y_ticks)
-
-    # Draw a grid
-    ax.grid(True)
-
-    # Use streamlit to display the plot
-    # st.pyplot(fig)
-
-    # Convert the matplotlib figure to a PIL Image
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png')
-    buf.seek(0)
-    bg_image = Image.open(buf)
+    #     # print('OLD SESSION')
+    #     saved_state = st.session_state['saved_state']
+    saved_state = None
+    # bg_image = Image.open(buf)
+    bg_image = None
 
     # Specify canvas parameters in application
     drawing_mode = st.sidebar.selectbox(
         "Drawing tool:", (   # "freedraw",
             "line",
-            "curve",
             "coordinate",
-            # "singlearrowhead",
-            # "doublearrowhead",
+            "curve",
+            "singlearrowhead",
+            "doublearrowhead",
             "text",
-            "rect",  # "point",  # "circle",
-            "polygon",
+            #   "rect",  "point",  # "circle",
+            # "polygon",
             "transform"
         )
     )
 
     stroke_width = st.sidebar.slider("Stroke width: ", 1, 25, 3)
+
     if drawing_mode == 'point':
         point_display_radius = st.sidebar.slider(
             "Point display radius: ", 1, 25, 3)
@@ -94,9 +69,8 @@ def process_canvas(default_drawing_data):
     # bg_image = st.sidebar.file_uploader("Background image:", type=["png", "jpg"])
 
     realtime_update = st.sidebar.checkbox("Update in realtime", True)
-
-    # Add a text input field for the label when the drawing mode is "text"
-    # label = st.sidebar.text_input("Label: ") if drawing_mode == "text" else None
+    axes_and_labels = st.sidebar.checkbox("axes and labels?", False)
+    # axes_and_labels = True
 
     # Create a canvas component
     canvas_result = st_canvas(
@@ -108,15 +82,16 @@ def process_canvas(default_drawing_data):
         # background_image=Image.open(bg_image) if bg_image else None,
         background_image=bg_image,
         update_streamlit=realtime_update,
+        axes_and_labels=axes_and_labels,
         width=canvas_width,
         height=canvas_height,
         drawing_mode=drawing_mode,
         # text=label,  # Use the entered label as the text to be drawn
         point_display_radius=point_display_radius if drawing_mode == 'point' else 0,
         scaleFactors=scaleFactors,  # [80, 40],
+        initial_drawing=saved_state,  # this the beginning jason data and drawings
         key="canvas",
     )
-
     # st.write("Canvas data:", canvas_result)
 
     # Do something interesting with the image data and paths
@@ -127,52 +102,31 @@ def process_canvas(default_drawing_data):
         # st.image(canvas_result.image_data)
         # Convert the image data to a PIL Image
         img = Image.fromarray(canvas_result.image_data.astype('uint8'), 'RGBA')
-
-        # Resize the user-drawn image to match the size of the background image
-        img = img.resize(bg_image.size)
-        # Combine the user-drawn image and the background image
-        combined = Image.alpha_composite(bg_image.convert('RGBA'), img)
-
-        # Save the combined image to a BytesIO object
-        combined_io = io.BytesIO()
-        combined.save(combined_io, 'PNG')
-        combined_io.seek(0)
-
-        # Convert the combined image to a base64 encoded string to be saved to database or template
-        base64_combined = base64.b64encode(combined_io.getvalue()).decode()
-        upload2db = base64_combined
-        # # Save img to a BytesIO object for comparison
-        # img_io = io.BytesIO()
-        # img.save(img_io, 'PNG')
-        # img_io.seek(0)
+        # Save img to a BytesIO object for comparison
+        img_io = io.BytesIO()
+        img.save(img_io, 'PNG')
+        img_io.seek(0)
 
         # # Convert img to a base64 encoded string
-        # base64_img = base64.b64encode(img_io.getvalue()).decode()
+        base64_img = base64.b64encode(img_io.getvalue()).decode()
+        upload2db = base64_img  # Create a download button for the image
 
-        # # Compare the base64 encoded strings
-        # if base64_combined == base64_img:
-        #     # img and combined are the same, which means nothing was drawn
-        #     upload2db = default_drawing_data
-        # else:
-        #     upload2db = base64_combined
-
-        # # Create a download button for the image
-        # st.download_button(
-        #     label="Download-canvas-image",
-        #     # data=img_io,
-        #     data=combined_io,
-        #     file_name='image01.png',
-        #     mime='image/png'
-        # )
+        st.download_button(
+            label="Download-canvas-image",
+            # data=img_io,
+            data=base64_img,
+            file_name='image01.png',
+            mime='image/png'
+        )
         return upload2db
 
-    # # Do something interesting with the JSON data
-    # if canvas_result.json_data is not None:
-    #     # need to convert obj to str because PyArrow
-    #     objects = pd.json_normalize(canvas_result.json_data["objects"])
-    #     for col in objects.select_dtypes(include=['object']).columns:
-    #         objects[col] = objects[col].astype("str")
-    #     st.dataframe(objects)
+        # # Do something interesting with the JSON data
+        # if canvas_result.json_data is not None:
+        #     # need to convert obj to str because PyArrow
+        #     objects = pd.json_normalize(canvas_result.json_data["objects"])
+        #     for col in objects.select_dtypes(include=['object']).columns:
+        #         objects[col] = objects[col].astype("str")
+        #     st.dataframe(objects)
 
 
 def process_image(default_image_data, question_key):
